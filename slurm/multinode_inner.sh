@@ -9,4 +9,4 @@ export XLA_FLAGS="--xla_gpu_enable_analytical_sol_latency_estimator=false"
 export HF_HOME="~/data/.cache/huggingface"
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
 
-python run.py --coord_addr ${MASTER_ADDR}:${MASTER_PORT} --num_procs $SLURM_NTASKS --n_layer 1
+python run.py --coord_addr ${MASTER_ADDR}:${MASTER_PORT} --num_procs $SLURM_NTASKS --track --batch_size $1 --population_size $2

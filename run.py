@@ -43,7 +43,8 @@ class Args:
     seed: int = 0
 
     dtype: str = 'int8'
-    parallel_generations_per_gpu: int = 1024
+    batch_size: int = 4
+    population_size: int = 1024
     num_epochs: int = 1000
 
     alpha: float = 4.0
@@ -58,10 +59,6 @@ class Args:
 
     noise_reuse: int = 1
     tokens_per_update: int = 100
-
-    num_perturbations: int = 0
-
-    group_size: int = 2
 
     dir_path: str = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cached_files")
     train_output_path: str = "minipile_train.npy"
@@ -93,7 +90,9 @@ print("process id", jax.process_index())
 
 args.proc_id = jax.process_index()
 print("proc_id is", args.proc_id)
-args.total_parallel_generations = total_num_devices * args.parallel_generations_per_gpu
+# args.total_parallel_generations = total_num_devices * args.parallel_generations_per_gpu
+args.total_parallel_generations = max(args.population_size, 2 * args.batch_size)
+args.parallel_generations_per_gpu = args.total_parallel_generations // total_num_devices
 args.update_batch_size = args.parallel_generations_per_gpu // 2
 assert args.validation_batch_size % total_num_devices == 0, "Validation batch size must be a multiple of total number of devices"
 
@@ -662,9 +661,9 @@ def run_evolution():
     
     frozen_noiser_params, noiser_params = NOISER.init_noiser(params, args.sigma_shift, all_thresholds[0], dtype=args.dtype, noise_seed=args.seed, noise_reuse=args.noise_reuse, use_clt=args.use_clt, fast_fitness=args.fast_fitness)
 
-    global_indices = replicate_matrix(np.arange(args.total_parallel_generations))
-    if args.num_perturbations != 0:
-        global_indices = global_indices % args.num_perturbations
+    global_indices = replicate_matrix(np.arange(args.total_parallel_generations) % args.population_size)
+    # if args.num_perturbations != 0:
+        # global_indices = global_indices % args.num_perturbations
     global_val_indices = replicate_matrix(np.arange(args.validation_batch_size))
     
     # all_thread_idxes = jnp.arange(args.parallel_generations_per_gpu)
@@ -732,7 +731,8 @@ def run_evolution():
     print(jit_update.memory_analysis())
 
     full_dataset = np.load(os.path.join(args.dir_path, args.train_output_path))
-    args.group_size = min(args.group_size, args.total_parallel_generations)
+    # args.group_size = min(args.group_size, args.total_parallel_generations)
+    args.group_size = args.total_parallel_generations // args.batch_size
     num_sequences = args.total_parallel_generations // args.group_size
     segments_per_sequence = (full_dataset.size - num_sequences) // (args.tokens_per_update * num_sequences)
     tokens_per_sequence = segments_per_sequence * args.tokens_per_update + 1
@@ -740,9 +740,10 @@ def run_evolution():
     truncated_dataset = full_dataset[:num_sequences * tokens_per_sequence].reshape((num_sequences, tokens_per_sequence))
 
     # full_name = f"int8_a{update_threshold}_s{args.sigma_shift}_{args.parallel_generations_per_gpu}x{args.tokens_per_update}x{args.noise_reuse}"
-    full_name = f"{args.dtype}_{args.n_embd}D{args.n_layer}L_a{args.alpha}_s{args.sigma_shift}_{total_num_devices}x{args.parallel_generations_per_gpu}/{args.group_size}x{args.tokens_per_update}x{args.noise_reuse}"
+    # full_name = f"{args.dtype}_{args.n_embd}D{args.n_layer}L_a{args.alpha}_s{args.sigma_shift}_{total_num_devices}x{args.parallel_generations_per_gpu}/{args.group_size}x{args.tokens_per_update}x{args.noise_reuse}"
+    full_name = f"{args.dtype}_{args.n_embd}D{args.n_layer}L_{args.batch_size}b_{args.population_size}p"
     print("Run name", full_name)
-    if args.track:
+    if args.track and args.proc_id == 0:
         run = wandb.init(
             project=args.wandb_project,
             config=args,
