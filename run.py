@@ -1,9 +1,9 @@
 import os
 
+os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.55")
+
 import jax
 from huggingface_hub.constants import HF_HOME
-
-os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.95"
 
 jax.config.update("jax_compilation_cache_dir", os.path.join(HF_HOME, "hyperscaleescomp"))
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)
@@ -59,6 +59,7 @@ class Args:
 
     noise_reuse: int = 1
     tokens_per_update: int = 100
+    update_microbatch_size: Optional[int] = None
 
     dir_path: str = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cached_files")
     train_output_path: str = "minipile_train.npy"
@@ -94,6 +95,10 @@ print("proc_id is", args.proc_id)
 args.total_parallel_generations = max(args.population_size, 2 * args.batch_size)
 args.parallel_generations_per_gpu = args.total_parallel_generations // total_num_devices
 args.update_batch_size = args.parallel_generations_per_gpu // 2
+if args.update_microbatch_size is not None:
+    assert args.update_microbatch_size > 0, "Update microbatch size must be positive"
+    assert (args.total_parallel_generations >> 1) % args.update_microbatch_size == 0, "Update microbatch size must divide half the total population size"
+    args.update_batch_size = args.update_microbatch_size
 assert args.validation_batch_size % total_num_devices == 0, "Validation batch size must be a multiple of total number of devices"
 
 mesh = jax.make_mesh((len(jax.devices()),), ('data',), axis_types=(jax.sharding.AxisType.Auto,))
@@ -734,6 +739,10 @@ def run_evolution():
     # args.group_size = min(args.group_size, args.total_parallel_generations)
     args.group_size = args.total_parallel_generations // args.batch_size
     num_sequences = args.total_parallel_generations // args.group_size
+    if num_sequences < total_num_devices:
+        num_sequences = total_num_devices
+        args.group_size = args.total_parallel_generations // num_sequences
+    num_sequences = (num_sequences + total_num_devices - 1) // total_num_devices * total_num_devices
     segments_per_sequence = (full_dataset.size - num_sequences) // (args.tokens_per_update * num_sequences)
     tokens_per_sequence = segments_per_sequence * args.tokens_per_update + 1
 

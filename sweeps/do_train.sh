@@ -6,7 +6,7 @@ set --
 
 export XLA_FLAGS="--xla_gpu_enable_analytical_sol_latency_estimator=false"
 export HF_HOME="~/data/.cache/huggingface"
-export XLA_PYTHON_CLIENT_MEM_FRACTION=0.95
+export XLA_PYTHON_CLIENT_MEM_FRACTION=${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.55}
 source ~/data/miniforge3/bin/activate
 conda activate nanoegg
 cd ~/data/nano-egg
