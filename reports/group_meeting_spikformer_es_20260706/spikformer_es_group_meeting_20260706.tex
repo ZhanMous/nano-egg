@@ -1,0 +1,266 @@
+\documentclass[10pt]{article}
+\usepackage[paperwidth=160mm,paperheight=90mm,margin=7mm]{geometry}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\setmainfont{WenQuanYi Zen Hei}
+\setsansfont{WenQuanYi Zen Hei}
+\setmonofont{WenQuanYi Zen Hei Mono}
+\XeTeXlinebreaklocale "zh"
+\XeTeXlinebreakskip = 0pt plus 1pt
+
+\pagestyle{empty}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=black}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\renewcommand{\arraystretch}{1.18}
+\sloppy
+
+\definecolor{paper}{HTML}{F7F8FA}
+\definecolor{ink}{HTML}{171B22}
+\definecolor{muted}{HTML}{667085}
+\definecolor{line}{HTML}{CCD3DD}
+\definecolor{soft}{HTML}{E9EEF5}
+\definecolor{navy}{HTML}{19324D}
+\definecolor{teal}{HTML}{11806A}
+\definecolor{amber}{HTML}{B15E1C}
+\definecolor{red}{HTML}{B54747}
+\definecolor{violet}{HTML}{654EA3}
+
+\newcommand{\DeckTitle}[1]{{\fontsize{16pt}{18pt}\selectfont\bfseries #1}}
+\newcommand{\SlideTitle}[1]{{\fontsize{14pt}{16pt}\selectfont\bfseries #1}}
+\newcommand{\BigNumber}[2]{{\fontsize{24pt}{26pt}\selectfont\bfseries\textcolor{#1}{#2}}}
+\newcommand{\Small}[1]{{\fontsize{6.5pt}{8pt}\selectfont #1}}
+\newcommand{\Caption}[1]{{\fontsize{6.4pt}{7.5pt}\selectfont\color{muted}#1}}
+\newcommand{\Source}[1]{\vfill{\fontsize{5.8pt}{7pt}\selectfont\color{muted}Source: #1}}
+\newcommand{\Rule}{\par\vspace{1.2mm}{\color{line}\rule{\linewidth}{0.35pt}}\par\vspace{3.2mm}}
+\newcommand{\Slide}[2]{%
+  \clearpage\pagecolor{paper}\color{ink}%
+  \noindent\begin{minipage}[t][76mm][t]{\linewidth}%
+  \SlideTitle{#1}\Rule #2%
+  \end{minipage}%
+}
+\newcommand{\Pill}[2]{%
+  {\setlength{\fboxsep}{1.1mm}\fcolorbox{#1}{paper}{\textcolor{#1}{\Small{\textbf{#2}}}}}%
+}
+\newcommand{\HBar}[4]{%
+  \begin{tabular}{@{}p{34mm}r@{\hspace{3mm}}p{82mm}@{}}
+  #1 & \textbf{#2} & {\color{#4}\rule{#3}{3.2mm}}\\[-0.2mm]
+  \end{tabular}\par\vspace{1.25mm}
+}
+\newcommand{\TinyBar}[4]{%
+  \begin{tabular}{@{}p{42mm}r@{\hspace{3mm}}p{60mm}@{}}
+  #1 & #2 & {\color{#4}\rule{#3}{2.4mm}}\\
+  \end{tabular}
+}
+\newcommand{\SignalBar}[4]{%
+  \begin{tabular}{@{}p{38mm}r@{\hspace{2mm}}p{10mm}@{}}
+  #1 & #2 & {\color{#4}\rule{#3}{2.2mm}}\\
+  \end{tabular}
+}
+\newcommand{\RunPath}[1]{{\fontsize{5.6pt}{6.5pt}\selectfont\texttt{\detokenize{#1}}}}
+
+\begin{document}
+
+\pagecolor{navy}\color{white}
+\vspace*{5mm}
+{\fontsize{28pt}{31pt}\selectfont\bfseries ES for Spikformer}\par
+\vspace{2mm}
+{\fontsize{13pt}{16pt}\selectfont 从 EggRoll 复现停滞到 CIFAR-10 可训练信号}\par
+\vspace{10mm}
+\begin{tabular}{@{}p{43mm}p{43mm}p{43mm}@{}}
+\BigNumber{teal}{32.83\%} & \BigNumber{amber}{1M} & \BigNumber{red}{0}\\[-1mm]
+best test acc & population scale & non-lora update signal in old EggRoll logs
+\end{tabular}
+\vfill
+{\fontsize{7pt}{8.5pt}\selectfont nano-egg / EGGROLL 展望实验 \hfill 2026-07-06}
+
+\Slide{这次汇报只回答一个问题}{%
+\vspace{2mm}
+{\fontsize{20pt}{24pt}\selectfont\bfseries
+ES 能不能在 spike-style Transformer 上产生真实训练信号？}\par
+\vspace{8mm}
+\begin{tabular}{@{}p{31mm}@{\hspace{4mm}}p{31mm}@{\hspace{4mm}}p{31mm}@{\hspace{4mm}}p{31mm}@{}}
+\Pill{red}{旧路线} &
+\Pill{teal}{诊断任务} &
+\Pill{amber}{规模门槛} &
+\Pill{violet}{结构化参数}\\[2mm]
+EggRoll 0.1B / 32 generations 没有稳定候选差异 &
+CIFAR-10 让初始化、loss、预测分布可诊断 &
+population 直接放到 1,048,576 &
+从 full model 转向 head / adapter / sparse head
+\end{tabular}
+\vspace{8mm}
+{\fontsize{12pt}{15pt}\selectfont\textbf{当前结论：}
+ES 信号已经成立，但 32.83\% 不是最终成功；它只是说明下一步值得继续把搜索范围推向更接近表征层的参数化。}
+\Source{本报告目录下 Spikformer JSON；Replay\_EGGROLL paper\_repro logs}
+}
+
+\Slide{旧 EggRoll 复现数据还在：它给的是负结果}{%
+\vspace{-0.5mm}
+\begin{tabular}{@{}p{22mm}p{24mm}p{29mm}p{29mm}p{23mm}@{}}
+\toprule
+任务 & validation & fitness std 非零 & LoRA update 非零 & non-LoRA update\\
+\midrule
+Countdown & 1.00\% flat & 1 / 220 blocks & 1 / 220 blocks & 0 / 220\\
+GSM8K & max 0.078\% & 2 / 500 blocks & 2 / 500 blocks & 0 / 500\\
+\bottomrule
+\end{tabular}
+\vspace{4mm}
+
+\begin{tabular}{@{}p{70mm}@{\hspace{7mm}}p{56mm}@{}}
+{\fontsize{10pt}{12pt}\selectfont\bfseries 可学习信号占比几乎为零}\par
+\vspace{1.5mm}
+\SignalBar{Countdown: std 非零}{0.45\%}{2mm}{red}
+\SignalBar{GSM8K: std 非零}{0.40\%}{2mm}{red}
+\vspace{1.5mm}
+\SignalBar{Countdown: LoRA 更新}{0.45\%}{2mm}{amber}
+\SignalBar{GSM8K: LoRA 更新}{0.40\%}{2mm}{amber}
+&
+{\fontsize{10pt}{12pt}\selectfont\bfseries 解读}\par
+\vspace{1.5mm}
+本地 0.1B / 32 generations 基本没有候选差异和有效更新。\par
+\vspace{1.5mm}
+这不是正结果，但它解释了为什么后续转向 CIFAR-10/Spikformer 诊断任务。
+\end{tabular}
+\Source{/home/zhan\_shaoji/code/Replay\_EGGROLL/HyperscaleES/experiments/paper\_repro/*.log；data/eggroll\_repro\_summary.tsv}
+}
+
+\Slide{实验重构：把 ES 问题搬到可校准的视觉任务}{%
+\vspace{1mm}
+\begin{tabular}{@{}p{32mm}@{\hspace{4mm}}p{100mm}@{}}
+\textbf{模型} &
+Spikformer-4-256 style：$T=4$，depth=4，dim=256，heads=8，patch size=4；4,159,274 params\\[2mm]
+\textbf{数据} &
+CIFAR-10：train 50k，test 10k；目标先看训练信号，不先追最终精度\\[2mm]
+\textbf{搜索} &
+centered-rank antithetic ES；population = 1,048,576；int8 fixed-point params；best-state continuation\\[2mm]
+\textbf{部署} &
+10.28.2.47 / NVIDIA H20；共享 GPU 下用 chunk=128，关闭 JAX 预分配\\[2mm]
+\textbf{关键约束} &
+保留 named parameter dictionary，能区分 head、adapter、block，不把结构信息压平
+\end{tabular}
+\vspace{7mm}
+{\fontsize{13pt}{16pt}\selectfont\bfseries
+核心改变不是“换一个数据集”，而是让每个训练阶段都有可解释的 sanity gate。}
+\Source{docs/spikformer\_es\_smoke.md；remote results copied from 10.28.2.47:/home/zhanshaoji/code/nano-egg-snn-es}
+}
+
+\Slide{初始化 sanity gate：先让随机模型像随机模型}{%
+\vspace{1mm}
+\begin{tabular}{@{}p{44mm}p{84mm}@{}}
+\toprule
+门槛 & 处理方式\\
+\midrule
+logits std 进入 0.1--2.0 & head 小初始化；必要时从 std=0.01 降到 0.001\\
+logits min/max 不爆炸 & head 前 LayerNorm；避免 spike feature 直接把尺度传给 logits\\
+CE 接近 $\log(10)=2.3026$ & time / token / feature 聚合优先用 mean，不用 sum 放大 $T \times N \times D$\\
+softmax 不塌到 1.0 & batch feature centering；保留 temperature 仅作诊断，不作为长期方案\\
+pred histogram 多类分布 & 每次架构改动先跑初始化 sanity script，再开 ES\\
+\bottomrule
+\end{tabular}
+\vspace{6mm}
+{\fontsize{12pt}{15pt}\selectfont\textbf{意义：}
+没有这个门槛，后面的 loss/accuracy 曲线没有解释价值；过大的 logits 会让 ES 先处理校准问题，而不是分类问题。}
+\Source{实验诊断要求与当前 Spikformer sanity workflow}
+}
+
+\Slide{主结果：结构化 ES 把 best acc 推到 32.83\%}{%
+\vspace{2mm}
+\HBar{Full-model calibrated}{18.61\%}{43mm}{red}
+\HBar{Head-only rank ES}{28.16\%}{65mm}{amber}
+\HBar{Adapter b64}{30.20\%}{70mm}{teal}
+\HBar{Stage5 frozen head}{32.60\%}{76mm}{teal}
+\HBar{Stage8 adapter + head}{32.83\%}{77mm}{violet}
+\vspace{7mm}
+{\fontsize{11pt}{14pt}\selectfont
+\textbf{读法：} full model 不是主线；head-only 确认随机 trunk 有可读信息；adapter 是第一个可靠的非 head 突破口；sparse head 只提供小幅补偿。}
+\Source{reports/group\_meeting\_spikformer\_es\_20260706/data/runs/*/results.json}
+}
+
+\Slide{路线演进：信号逐步从 head 推到非 head readout}{%
+\vspace{3mm}
+\begin{tabular}{@{}p{31mm}@{\hspace{4mm}}p{31mm}@{\hspace{4mm}}p{31mm}@{\hspace{4mm}}p{31mm}@{}}
+{\color{red}\rule{31mm}{1.2mm}} &
+{\color{amber}\rule{31mm}{1.2mm}} &
+{\color{teal}\rule{31mm}{1.2mm}} &
+{\color{violet}\rule{31mm}{1.2mm}}\\[2mm]
+\textbf{1. Full model} &
+\textbf{2. Head-only} &
+\textbf{3. Frozen adapter} &
+\textbf{4. Adapter + head}\\[1mm]
+18.61\% &
+28.16\% &
+32.60\% &
+32.83\%\\[2mm]
+4M 参数空间过大，sparse sign 信号稀释 &
+固定 trunk 后，线性读出可被 ES 优化 &
+pooled feature 后加 bottleneck adapter，进入非 head 参数 &
+极稀疏 head 更新只带来小幅补偿
+\end{tabular}
+\vspace{8mm}
+{\fontsize{13pt}{16pt}\selectfont\bfseries
+最关键的转折不是 32.83\%，而是 head-only 之后还能靠 adapter 继续涨。}
+\Source{Full/head/adapter/stage5/stage8 result JSON}
+}
+
+\Slide{最有价值的证据：非 head 参数化贡献了 +4.44 pp}{%
+\vspace{2mm}
+\begin{tabular}{@{}p{42mm}r@{\hspace{5mm}}p{70mm}@{}}
+\toprule
+区间 & 增益 & 解释\\
+\midrule
+Full model $\rightarrow$ Head-only & +9.55 pp & 先把搜索降到低维，证明系统里有分类信号\\
+Head-only $\rightarrow$ Frozen adapter & +4.44 pp & 不训练 head 也能提升，说明 ES 优化到了非 head readout 参数\\
+Frozen adapter $\rightarrow$ Adapter + head & +0.23 pp & head 稀疏微调有用，但边际收益很低\\
+\bottomrule
+\end{tabular}
+\vspace{7mm}
+\begin{tabular}{@{}p{33mm}p{95mm}@{}}
+\BigNumber{teal}{+4.44 pp} &
+这是当前阶段最应该在组会上强调的结果：ES 不只是把 classifier head 拧好，它已经能在 Spikformer-style pipeline 的结构化非 head 子空间里找到有效方向。\\
+\end{tabular}
+\Source{Head-only best 28.16\%；Stage5 frozen-head adapter best 32.60\%}
+}
+
+\Slide{边界也很清楚：同一个 readout 已接近平台期}{%
+\vspace{1mm}
+\begin{tabular}{@{}p{36mm}p{30mm}p{30mm}p{36mm}@{}}
+\toprule
+后续尝试 & Best acc & Final loss & 结论\\
+\midrule
+Stage6, $\sigma=0.025$, top 0.5\% & 32.60\% & 1.8753 & loss 降，但 acc 不突破\\
+Stage7, train head, top 0.1\% & 32.69\% & 1.8735 & 稀疏 head 有小增益\\
+Stage8, train head, top 0.1\% & 32.83\% & 1.8727 & 当前 best，但幅度很小\\
+Stage8, $\sigma=0.0125$ & 32.74\% & 1.8734 & 小步长没有更好\\
+\bottomrule
+\end{tabular}
+\vspace{7mm}
+{\fontsize{12pt}{15pt}\selectfont
+\textbf{判断：} 继续在同一个 pooled readout 上 continuation，主要是在改善 calibration/loss；要继续涨 accuracy，需要换更强的非 head 参数化。}
+\Source{Stage6/Stage7/Stage8 result JSON；current best artifact: \RunPath{runs/spikformer4_adapter_b64_b1024_stage8_trainhead_sigma025_top01_c128/best_state.npz}}
+}
+
+\Slide{下一轮实验：把搜索范围推近表征层}{%
+\vspace{2mm}
+\begin{tabular}{@{}p{34mm}@{\hspace{5mm}}p{96mm}@{}}
+\textbf{A. late-block adapter} &
+在后 1--2 个 Spikformer block 加小 adapter，保留 trunk 结构信号，避免直接 full-model 4M 维扰动\\[3mm]
+\textbf{B. token-aware readout} &
+不要只用 pooled feature；让 adapter 看到 token 级统计或低秩 token mixer，测试 readout 表达能力是否是瓶颈\\[3mm]
+\textbf{C. 1M population} &
+这个模型规模下，小 population 不能作为否定证据；1M 是当前判断基准\\[3mm]
+\textbf{D. 成功判据} &
+不只看 loss 降：train/test acc 要继续涨，pred histogram 不塌缩，且非 head 参数贡献要能单独复现
+\end{tabular}
+\vspace{5mm}
+{\fontsize{12.5pt}{15pt}\selectfont\bfseries
+短期目标：从 readout adapter 推进到 late-block structured ES。}
+\Source{本轮实验结论；当前结果仍非 paper-ready claim}
+}
+
+\end{document}

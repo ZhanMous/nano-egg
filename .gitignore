@@ -1,8 +1,11 @@
 cached_files/
 cache/
+__pycache__/
+*.py[cod]
 sweeps/outputs
 sweeps/**.out
 sweeps/wandb/
 wandb/
 baselines/wandb/
+runs/
 slurm/outs/
