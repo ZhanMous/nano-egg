@@ -2,6 +2,13 @@
 
 This is a single-file implementation of a minGRU-based language model that is trained only using integer datatypes. This is possible thanks to EGGROLL, our novel method for evolution that is highly efficient on GPUs.
 
+** Evo-TRQR
+
+The frozen-backbone evolutionary temporal-redundancy discovery path is
+documented in =docs/evo_trqr.md=. It includes an exact identity gate, a
+16-dimensional continuous controller, discrete mechanism mutation, shared-mask
+antithetic evaluation, and epsilon-constrained activity budgets.
+
 
 ** Install Instructions
 

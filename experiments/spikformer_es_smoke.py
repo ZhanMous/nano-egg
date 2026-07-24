@@ -35,6 +35,7 @@ class ModelConfig:
     time_steps: int
     lif_tau: float
     lif_threshold: float
+    pool_after: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,13 @@ class ParamSpec:
 
 @dataclass
 class Args:
-    preset: Literal["tiny", "smoke", "spikformer_2_128", "spikformer_4_256"] = "smoke"
+    preset: Literal[
+        "tiny",
+        "smoke",
+        "spikformer_2_128",
+        "spikformer_4_256",
+        "spikformer_dvs_2_256",
+    ] = "smoke"
     data_source: Literal["synthetic", "cifar10"] = "synthetic"
     seed: int = 0
     epochs: int = 2
@@ -75,6 +82,21 @@ class Args:
 
 
 def preset_config(name: str) -> ModelConfig:
+    if name == "spikformer_dvs_2_256":
+        return ModelConfig(
+            image_size=128,
+            in_channels=2,
+            num_classes=10,
+            dim=256,
+            depth=2,
+            num_heads=16,
+            mlp_ratio=4,
+            patch_size=16,
+            time_steps=10,
+            lif_tau=2.0,
+            lif_threshold=0.5,
+            pool_after=(0, 1, 2, 3),
+        )
     if name == "spikformer_4_256":
         return ModelConfig(
             image_size=32,
@@ -88,6 +110,7 @@ def preset_config(name: str) -> ModelConfig:
             time_steps=4,
             lif_tau=2.0,
             lif_threshold=0.5,
+            pool_after=(2, 3),
         )
     if name == "tiny":
         return ModelConfig(
@@ -102,6 +125,7 @@ def preset_config(name: str) -> ModelConfig:
             time_steps=1,
             lif_tau=2.0,
             lif_threshold=0.5,
+            pool_after=(2, 3),
         )
     if name == "spikformer_2_128":
         return ModelConfig(
@@ -116,6 +140,7 @@ def preset_config(name: str) -> ModelConfig:
             time_steps=2,
             lif_tau=2.0,
             lif_threshold=0.5,
+            pool_after=(2, 3),
         )
     if name == "smoke":
         return ModelConfig(
@@ -130,6 +155,7 @@ def preset_config(name: str) -> ModelConfig:
             time_steps=2,
             lif_tau=2.0,
             lif_threshold=0.5,
+            pool_after=(2, 3),
         )
     raise ValueError(f"unknown preset: {name}")
 
@@ -388,7 +414,23 @@ def sps_forward(
     pair_idx: int | None,
     sign: int,
 ) -> jax.Array:
-    x = jnp.repeat(images[None], cfg.time_steps, axis=0)
+    if images.ndim == 4:
+        x = jnp.repeat(images[None], cfg.time_steps, axis=0)
+    elif images.ndim == 5:
+        if images.shape[1] != cfg.time_steps:
+            raise ValueError(
+                f"event input has T={images.shape[1]}, expected cfg.time_steps={cfg.time_steps}"
+            )
+        if images.shape[-1] != cfg.in_channels:
+            raise ValueError(
+                f"event input has C={images.shape[-1]}, expected cfg.in_channels={cfg.in_channels}"
+            )
+        x = jnp.transpose(images, (1, 0, 2, 3, 4))
+    else:
+        raise ValueError(
+            "images must be [B,H,W,C] static frames or [B,T,H,W,C] event frames, "
+            f"got {images.shape}"
+        )
     t, b, h, w, c = x.shape
     x = x.reshape((t * b, h, w, c))
 
@@ -400,7 +442,7 @@ def sps_forward(
         _, h_now, w_now, ch_now = x.shape
         x = affine_channels(x, gamma, beta).reshape((t, b, h_now, w_now, ch_now))
         x = lif(x, cfg, args).reshape((t * b, h_now, w_now, ch_now))
-        if idx in (2, 3):
+        if idx in cfg.pool_after:
             x = maxpool2d(x)
 
     _, h_now, w_now, ch_now = x.shape
